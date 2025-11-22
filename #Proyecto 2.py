@@ -7,9 +7,22 @@
 import tkinter as tk
 import json
 import os
+import random
 
 #---------------------------VARIABLES GLOBALES---------------------------
 RUTA_PUNTAJES = "datos/puntajes.json"
+
+#---------------------------FUNCIONES AUXILIARES---------------------------
+def color_casilla(c):  #Son colores x mientras tanto, ya despues le buscamos algo nice :)
+    if isinstance(c, Camino):
+        return "#bfbfbf"   # gris
+    if isinstance(c, Muro):
+        return "#000000"   # negro
+    if isinstance(c, Liana):
+        return "#2ecc71"   # verde
+    if isinstance(c, Tunel):
+        return "#3498db"   # azul
+    return "#ffffff"       # blanco por defeto
 
 #---------------------------CLASES DEL TERRENO---------------------------
 
@@ -70,12 +83,37 @@ class Mapa:
 
 
 class GeneradorMapa:
+    def __init__ (self):   #Porbabilidad que tiene cada tipo de casilla
+        self.prob_camino= 0.50
+        self.prob_muro= 0.20
+        self.prob_liana= 0.20
+        self.prob_tunel= 0.10
+
     def generar(self):
-        # Mapa temporal 10x10 solo con caminos
-        matriz = [[Camino() for _ in range(10)] for _ in range(10)]
+        # Crear una matriz 10x10 con casillas aleatorias
+        # ====== NO VALIDA QUE ESTE LA SALIDA SI O SI======
+        matriz = []
+
+        for f in range(10):
+            fila = []
+            for c in range(10):
+                fila.append(self.elegir_casilla())
+            matriz.append(fila)
+
         return matriz
+    
+    def elegir_casilla(self):
+        x= random.random()  #es un numero random entre 0 y 1
 
-
+        if x < self.prob_camino:
+            return Camino()
+        elif x < self.prob_camino + self.prob_muro:
+            return Muro()
+        elif x < self.prob_camino + self.prob_muro + self.prob_liana:
+            return Liana()
+        else:
+            return Tunel()
+        
 class Jugador:
     def __init__(self, fila, col):
         self.fila = fila
@@ -100,6 +138,8 @@ class Enemigo:
 class Trampas:
     def __init__(self):
         self.activas = []
+
+
 
 #---------------------------CLASES DE PUNTAJES Y REGISTRO---------------------------
 
@@ -135,17 +175,51 @@ class VentanaMenu(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Menú principal")
+        self.geometry("300x200")
 
         tk.Button(self, text="Registrar jugador",
-                  command=self.abrir_registro).pack()
+                  command=self.abrir_registro).pack(pady=10)
+        
+        tk.Button(self, text="Iniciar juego",
+                  command=self.abrir_juego).pack(pady=10)
 
     def abrir_registro(self):
         VentanaRegistro()
+
+    def abrir_juego(self):
+        VentanaJuego()
 
 class VentanaJuego(tk.Toplevel):
     def __init__(self):
         super().__init__()
         self.title("Juego")
+
+         # Crear canvas donde se dibuja el mapa
+        self.canvas = tk.Canvas(self, width=400, height=400)
+        self.canvas.pack()
+
+        # Generar el mapa real
+        generador = GeneradorMapa()
+        self.mapa = generador.generar()
+
+        # Dibujar el mapa
+        self.dibujar_mapa()
+    
+    # Dibuja cada casilla para el mapa
+    def dibujar_mapa(self):
+        tam = 40  # tamaño de cada casilla (40x40 px)
+
+        for f in range(10):
+            for c in range(10):
+                casilla = self.mapa[f][c]
+                color = color_casilla(casilla)
+
+                x1 = c * tam
+                y1 = f * tam
+                x2 = x1 + tam
+                y2 = y1 + tam
+
+                self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline="gray")
 
 #---------------------------PROGRAMA PRINCIPAL---------------------------
 if __name__ == "__main__":
