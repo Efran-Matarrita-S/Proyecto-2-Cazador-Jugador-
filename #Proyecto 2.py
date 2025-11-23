@@ -202,8 +202,33 @@ class VentanaJuego(tk.Toplevel):
         generador = GeneradorMapa()
         self.mapa = generador.generar()
 
+        #Posicion inicial del jugador
+        self.j_fila= 0
+        self.j_col= 0
+
+        self.tam= 40
+
+        # Posición inicial del enemigo
+        self.e_fila = 9
+        self.e_col = 9
+
         # Dibujar el mapa
         self.dibujar_mapa()
+
+        #Dibujar al jugador
+        self.dibujar_jugador()
+
+        # Dibujar enemigo
+        self.dibujar_enemigo()
+
+        #Teclas para moverse
+        self.bind("<Up>", self.mover_arriba)
+        self.bind("<Down>", self.mover_abajo)
+        self.bind("<Left>", self.mover_izquierda)
+        self.bind("<Right>", self.mover_derecha)
+        # Para que la ventana detecte teclas
+        self.focus_set()
+        self.mover_enemigo()
     
     # Dibuja cada casilla para el mapa
     def dibujar_mapa(self):
@@ -220,6 +245,102 @@ class VentanaJuego(tk.Toplevel):
                 y2 = y1 + tam
 
                 self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline="gray")
+
+    def dibujar_jugador(self):
+        x1 = self.j_col * self.tam
+        y1 = self.j_fila * self.tam
+        x2 = x1 + self.tam
+        y2 = y1 + self.tam
+
+        # El jugador va a ser un cuadro rojo, igual por ahora :^
+        self.jugador_grafico = self.canvas.create_rectangle(
+            x1, y1, x2, y2, fill="red"
+        )
+
+    def dibujar_enemigo(self):
+        x1 = self.e_col * self.tam
+        y1 = self.e_fila * self.tam
+        x2 = x1 + self.tam
+        y2 = y1 + self.tam
+
+        self.enemigo_grafico = self.canvas.create_rectangle(
+            x1, y1, x2, y2, fill="purple"
+        )
+
+    #Para verificar de que si se pueda mover a lo que quiere moverse
+    def puede_moverse_a (self,nf,nc):
+        # Está fuera del mapp
+        if nf < 0 or nf >= 10 or nc < 0 or nc >= 10:
+            return False
+
+        casilla = self.mapa[nf][nc]
+        return casilla.permite_jugador()
+    
+    def enemigo_moverse_a (self,nf,nc):
+        if nf < 0 or nf >= 10 or nc < 0 or nc >= 10:
+            return False
+        
+        casilla= self.mapa[nf][nc]
+        return casilla.permite_enemigo()
+    
+
+    #-------------- Moverse del jugador --------------
+    def mover (self,df,dc):
+        nf = self.j_fila + df
+        nc = self.j_col + dc
+
+        if self.puede_moverse_a(nf, nc):
+            self.j_fila = nf
+            self.j_col = nc
+            self.canvas.move(self.jugador_grafico, dc * self.tam, df * self.tam)
+
+    #Movimientos del jugador
+    def mover_arriba(self, event):
+        self.mover(-1, 0)
+
+    def mover_abajo(self, event):
+        self.mover(1, 0)
+
+    def mover_izquierda(self, event):
+        self.mover(0, -1)
+
+    def mover_derecha(self, event):
+        self.mover(0, 1)
+
+    #-------------- Moverse del enemigo --------------
+    def mover_enemigo(self):
+        df = 0
+        dc = 0
+
+        # Movimiento vertical hacia el jugador
+        if self.e_fila < self.j_fila:
+            df = 1
+        elif self.e_fila > self.j_fila:
+            df = -1
+
+        # Movimiento horizontal hacia el jugador
+        if self.e_col < self.j_col:
+            dc = 1
+        elif self.e_col > self.j_col:
+            dc = -1
+
+        # Intentar movimiento vertical primero
+        if df != 0 and self.enemigo_moverse_a(self.e_fila + df, self.e_col):
+            self.e_fila += df
+            self.canvas.move(self.enemigo_grafico, 0, df * self.tam)
+
+        # Si no pudo, intentar horizontal
+        elif dc != 0 and self.enemigo_moverse_a(self.e_fila, self.e_col + dc):
+            self.e_col += dc
+            self.canvas.move(self.enemigo_grafico, dc * self.tam, 0)
+
+        # Para saber si me atrapo (por ahora :p)
+        if self.e_fila == self.j_fila and self.e_col == self.j_col:
+            print("¡Te atraparon!")
+            return
+
+        #Aqui se cambia la velocidad a la que se mueve el enemigo
+        self.after(400, self.mover_enemigo)
 
 #---------------------------PROGRAMA PRINCIPAL---------------------------
 if __name__ == "__main__":
