@@ -13,16 +13,16 @@ import random
 RUTA_PUNTAJES = "datos/puntajes.json"
 
 #---------------------------FUNCIONES AUXILIARES---------------------------
-def color_casilla(c):  #Son colores x mientras tanto, ya despues le buscamos algo nice :)
+def cargar_casilla(c):  #Son colores x mientras tanto, ya despues le buscamos algo nice :)
     if isinstance(c, Camino):
-        return "#bfbfbf"   # gris
+        return "c"            #"#bfbfbf"   # gris
     if isinstance(c, Muro):
-        return "#000000"   # negro
+        return "m"            #"#000000"   # negro
     if isinstance(c, Liana):
-        return "#2ecc71"   # verde
+        return "l"            #"#2ecc71"   # verde
     if isinstance(c, Tunel):
-        return "#3498db"   # azul
-    return "#ffffff"       # blanco por defeto
+        return                #"#3498db"   # azul
+    return "t"                #"#ffffff"       # blanco por defeto
 
 #---------------------------CLASES DEL TERRENO---------------------------
 
@@ -233,39 +233,269 @@ class VentanaJuego(tk.Toplevel):
     # Dibuja cada casilla para el mapa
     def dibujar_mapa(self):
         tam = 40  # tamaño de cada casilla (40x40 px)
+        #self.muros
 
         for f in range(10):
             for c in range(10):
                 casilla = self.mapa[f][c]
-                color = color_casilla(casilla)
-
+                casilla = cargar_casilla(casilla) #TODO: CAMBIAR NOMBRE DE ESTA FUNCION O ELIMINARLA POR COMPLETO IDK , CAMBIAR NOMBRE A elegir_casilla POR EJEMPLO
+          
                 x1 = c * tam
                 y1 = f * tam
                 x2 = x1 + tam
                 y2 = y1 + tam
 
-                self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline="gray")
+                if casilla == "c":
+                    self.canvas.create_rectangle(x1, y1, x2, y2, fill="lightgray", outline="gray")
+
+                elif casilla == "m":
+
+                    #Creamos el muro con cada hueco individualmente (queda un poco feo pero like gets job done)
+
+                    self.canvas.create_rectangle(x1, y1, x2, y2, 
+                                                         fill="#45494B", outline="#45494B"
+                                                         )
+                    #muro.append(fondo)
+
+                    #Texturas izquierdas
+                    self.canvas.create_rectangle(x1+0, y1+0, x1+15, y1+13, 
+                                                         fill="#282A2B", outline=""
+                                                         )
+                    
+                    self.canvas.create_rectangle(x1+0, y1+15, x1+30, y1+28, 
+                                                         fill="#282A2B", outline=""
+                                                         )
+                    
+                    self.canvas.create_rectangle(x1+0, y1+30, x1+15, y1+40, 
+                                                         fill="#282A2B", outline=""
+                                                         )
+                    
+                    #Texturas derechas
+                    self.canvas.create_rectangle(x1+17, y1+0, x1+40, y1+13, 
+                                                         fill="#282A2B", outline=""
+                                                         )
+                    
+                    self.canvas.create_rectangle(x1+32, y1+15, x1+40, y1+28, 
+                                                         fill="#282A2B", outline=""
+                                                         )
+                    
+                    self.canvas.create_rectangle(x1+17, y1+30, x1+40, y1+40, 
+                                                         fill="#282A2B", outline=""
+                                                         )
+
+
+                elif casilla == "l":
+
+                    self.canvas.create_rectangle(x1, y1, x2, y2, fill="lightgray", outline="gray")
+
+                    #Primera parte de las 3 lianas - outlines oscuros primero
+                    self.canvas.create_rectangle(x1+9, y1+0, x1+14, y1+15, 
+                                                         fill="#1A5827", outline="#193F21"
+                                                         )
+                    
+                    self.canvas.create_rectangle(x1+19, y1+0, x1+24, y1+15, 
+                                                         fill="#1A5827", outline="#193F21"
+                                                         )
+                    
+                    self.canvas.create_rectangle(x1+29, y1+0, x1+34, y1+15, 
+                                                         fill="#1A5827", outline="#193F21"
+                                                         )
+                    
+                    #Primera parte de las 3 lianas - colores claros encima
+                    self.canvas.create_rectangle(x1+10, y1+0, x1+13, y1+15, 
+                                                         fill="#14C43A", outline="#14C43A"
+                                                         )
+                    
+                    self.canvas.create_rectangle(x1+20, y1+0, x1+23, y1+15, 
+                                                         fill="#14C43A", outline="#14C43A"
+                                                         )
+                    
+                    self.canvas.create_rectangle(x1+30, y1+0, x1+33, y1+15, 
+                                                         fill="#14C43A", outline="#14C43A"
+                                                         )
+                    
+                    #Parte media de las 3 lianas - outlines oscuros primero
+                    self.canvas.create_rectangle(x1+11, y1+15, x1+16, y1+30, 
+                                                         fill="#1A5827", outline="#193F21"
+                                                         )
+                    
+                    self.canvas.create_rectangle(x1+21, y1+15, x1+26, y1+30, 
+                                                         fill="#1A5827", outline="#193F21"
+                                                         )
+                    
+                    self.canvas.create_rectangle(x1+31, y1+15, x1+36, y1+30, 
+                                                         fill="#1A5827", outline="#193F21"
+                                                         )
+                    
+                    #Parte media de las 3 lianas - colores claros encima
+                    self.canvas.create_rectangle(x1+12, y1+15, x1+15, y1+30, 
+                                                         fill="#14C43A", outline="#14C43A"
+                                                         )
+                    
+                    self.canvas.create_rectangle(x1+22, y1+15, x1+25, y1+30, 
+                                                         fill="#14C43A", outline="#14C43A"
+                                                         )
+                    
+                    self.canvas.create_rectangle(x1+32, y1+15, x1+35, y1+30, 
+                                                         fill="#14C43A", outline="#14C43A"
+                                                         )
+                    
+                    #Parte baja de las 3 lianas - outlines oscuros primero
+                    self.canvas.create_rectangle(x1+9, y1+30, x1+14, y1+37, 
+                                                         fill="#1A5827", outline="#193F21"
+                                                         )
+                    
+                    self.canvas.create_rectangle(x1+19, y1+30, x1+24, y1+37, 
+                                                         fill="#1A5827", outline="#193F21"
+                                                         )
+                    
+                    self.canvas.create_rectangle(x1+29, y1+30, x1+34, y1+37, 
+                                                         fill="#1A5827", outline="#193F21"
+                                                         )
+                    
+                    #Parte baja de las 3 lianas - colores claros encima
+                    self.canvas.create_rectangle(x1+10, y1+30, x1+13, y1+37, 
+                                                         fill="#14C43A", outline="#14C43A"
+                                                         )
+                    
+                    self.canvas.create_rectangle(x1+20, y1+30, x1+23, y1+37, 
+                                                         fill="#14C43A", outline="#14C43A"
+                                                         )
+                    
+                    self.canvas.create_rectangle(x1+30, y1+30, x1+33, y1+37, 
+                                                         fill="#14C43A", outline="#14C43A"
+                                                         )
+
+
+                else:
+                    self.canvas.create_rectangle(x1, y1, x2, y2, fill="#686262")
+
+                    #Crearemos la parte de adentro de el tunel (Rectangulos stacked up cada vez mas pequeños)
+                    self.canvas.create_rectangle(x1+10, y1+25, x1+30, y1+40, 
+                                                         fill="#333030", outline="#333030"
+                                                         )
+                    
+                    self.canvas.create_rectangle(x1+15, y1+15, x1+25, y1+25, 
+                                                         fill="#333030", outline="#333030"
+                                                         )
+                    
+                    self.canvas.create_rectangle(x1+19, y1+10, x1+21, y1+15, 
+                                                         fill="#333030", outline="#333030"
+                                                         )
+
+
+
+                #self.canvas.create_rectangle(x1, y1, x2, y2, fill="color_de_casilla", outline="gray")
 
     def dibujar_jugador(self):
+
+        #Base del jugador para ponerle cosas encima
+        x_base = self.j_col * self.tam
+        y_base = self.j_fila * self.tam
+
+        """
         x1 = self.j_col * self.tam
         y1 = self.j_fila * self.tam
         x2 = x1 + self.tam
         y2 = y1 + self.tam
+        """
 
-        # El jugador va a ser un cuadro rojo, igual por ahora :^
-        self.jugador_grafico = self.canvas.create_rectangle(
-            x1, y1, x2, y2, fill="red"
+        # El jugador va a ser un cuadro rojo, igual por ahora :^ (Vamos a cambiar eso muejejeje)
+        self.jugador_grafico = []
+
+        #sombrero de aventurero
+        sombrero_top = self.canvas.create_rectangle(
+
+            x_base + 12, y_base + 2,    
+            x_base + 28, y_base + 4,
+            fill="saddlebrown", outline="black"
         )
+        self.jugador_grafico.append(sombrero_top)
+
+        # Sombrero - parte grande (ala)
+        sombrero_bottom = self.canvas.create_rectangle(
+            x_base + 8, y_base + 4,       # Justo debajo del pico
+            x_base + 32, y_base + 8,
+            fill="saddlebrown", outline="black"
+        )
+        self.jugador_grafico.append(sombrero_bottom)
+
+        # Cuerpo
+        cuerpo = self.canvas.create_rectangle(
+            x_base + 10, y_base + 10,
+            x_base + 30, y_base + 28,
+            fill="tan", outline="black"
+        )
+        self.jugador_grafico.append(cuerpo)
+
+        camisa = self.canvas.create_rectangle(
+            x_base + 10, y_base + 20,
+            x_base + 30, y_base + 40,
+            fill="green", outline="black"
+        )
+        self.jugador_grafico.append(camisa)
+  
 
     def dibujar_enemigo(self):
+
+        """
         x1 = self.e_col * self.tam
         y1 = self.e_fila * self.tam
         x2 = x1 + self.tam
         y2 = y1 + self.tam
+        """
 
-        self.enemigo_grafico = self.canvas.create_rectangle(
-            x1, y1, x2, y2, fill="purple"
+        #Base del enemigo para ponerle cosas encima
+        x_base = self.e_col * self.tam
+        y_base = self.e_fila * self.tam
+
+        self.enemigo_grafico = []
+
+        #sombrero de aventurero
+        sombrero_top = self.canvas.create_rectangle(
+
+            x_base + 12, y_base + 2,    
+            x_base + 28, y_base + 4,
+            fill="saddlebrown", outline="black"
         )
+        self.enemigo_grafico.append(sombrero_top)
+
+        # Sombrero - parte grande (ala)
+        sombrero_bottom = self.canvas.create_rectangle(
+            x_base + 8, y_base + 4,       # Justo debajo del pico
+            x_base + 32, y_base + 8,
+            fill="saddlebrown", outline="black"
+        )
+        self.enemigo_grafico.append(sombrero_bottom)
+
+        # Cuerpo
+        cuerpo = self.canvas.create_rectangle(
+            x_base + 10, y_base + 10,
+            x_base + 30, y_base + 28,
+            fill="tan", outline="black"
+        )
+        self.enemigo_grafico.append(cuerpo)
+
+        camisa = self.canvas.create_rectangle(
+            x_base + 10, y_base + 20,
+            x_base + 30, y_base + 40,
+            fill="red", outline="black"
+        )
+        self.enemigo_grafico.append(camisa)
+
+        arma_top = self.canvas.create_rectangle(
+            x_base + 5, y_base + 25,
+            x_base + 20, y_base + 27,
+            fill="black", outline="black"
+        )
+        self.enemigo_grafico.append(arma_top)
+
+        arma_bottom = self.canvas.create_rectangle(
+            x_base + 17, y_base + 27,
+            x_base + 23, y_base + 29,
+            fill="black", outline="black"
+        )
+        self.enemigo_grafico.append(arma_bottom)
 
     #Para verificar de que si se pueda mover a lo que quiere moverse
     def puede_moverse_a (self,nf,nc):
@@ -292,7 +522,8 @@ class VentanaJuego(tk.Toplevel):
         if self.puede_moverse_a(nf, nc):
             self.j_fila = nf
             self.j_col = nc
-            self.canvas.move(self.jugador_grafico, dc * self.tam, df * self.tam)
+            for elemento in self.jugador_grafico:
+                self.canvas.move(elemento, dc * self.tam, df * self.tam)
 
     #Movimientos del jugador
     def mover_arriba(self, event):
@@ -327,12 +558,14 @@ class VentanaJuego(tk.Toplevel):
         # Intentar movimiento vertical primero
         if df != 0 and self.enemigo_moverse_a(self.e_fila + df, self.e_col):
             self.e_fila += df
-            self.canvas.move(self.enemigo_grafico, 0, df * self.tam)
+            for elemento in self.enemigo_grafico:
+                self.canvas.move(elemento, 0, df * self.tam)
 
         # Si no pudo, intentar horizontal
         elif dc != 0 and self.enemigo_moverse_a(self.e_fila, self.e_col + dc):
             self.e_col += dc
-            self.canvas.move(self.enemigo_grafico, dc * self.tam, 0)
+            for elemento in self.enemigo_grafico:
+                self.canvas.move(elemento, dc * self.tam, 0)
 
         # Para saber si me atrapo (por ahora :p)
         if self.e_fila == self.j_fila and self.e_col == self.j_col:
