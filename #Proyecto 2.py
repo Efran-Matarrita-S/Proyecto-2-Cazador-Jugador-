@@ -11,9 +11,10 @@ import random
 
 #---------------------------VARIABLES GLOBALES---------------------------
 RUTA_PUNTAJES = "datos/puntajes.json"
+#contador_trampa = 0
 
 #---------------------------FUNCIONES AUXILIARES---------------------------
-def cargar_casilla(c):  #Son colores x mientras tanto, ya despues le buscamos algo nice :)
+def cargar_casilla(c): 
     if isinstance(c, Camino):
         return "c"            #"#bfbfbf"   # gris
     if isinstance(c, Muro):
@@ -84,9 +85,9 @@ class Mapa:
 
 class GeneradorMapa:
     def __init__ (self):   #Porbabilidad que tiene cada tipo de casilla
-        self.prob_camino= 0.50
+        self.prob_camino= 0.60
         self.prob_muro= 0.20
-        self.prob_liana= 0.20
+        self.prob_liana= 0.10
         self.prob_tunel= 0.10
 
     def generar(self):
@@ -135,10 +136,16 @@ class Enemigo:
         self.col += dc
 
 
-class Trampas:
+class Trampa:
     def __init__(self):
         self.activas = []
 
+    def permite_jugador(self):
+        return True
+
+    def permite_enemigo(self):
+        return True   
+        
 
 
 #---------------------------CLASES DE PUNTAJES Y REGISTRO---------------------------
@@ -166,6 +173,7 @@ class VentanaRegistro(tk.Toplevel):
     def __init__(self):
         super().__init__()
         self.title("Registro")
+        self.geometry("500x500")
 
         tk.Label(self, text="Nombre del jugador:").pack()
         self.entry = tk.Entry(self)
@@ -212,6 +220,9 @@ class VentanaJuego(tk.Toplevel):
         self.e_fila = 9
         self.e_col = 9
 
+        # Inicializar el contador de trampa como atributo
+        self.contador_trampa = 0
+
         # Dibujar el mapa
         self.dibujar_mapa()
 
@@ -222,14 +233,111 @@ class VentanaJuego(tk.Toplevel):
         self.dibujar_enemigo()
 
         #Teclas para moverse
-        self.bind("<Up>", self.mover_arriba)
+        self.bind("<Up>", self.mover_arriba)  
         self.bind("<Down>", self.mover_abajo)
         self.bind("<Left>", self.mover_izquierda)
         self.bind("<Right>", self.mover_derecha)
+        self.bind("<space>", self.poner_trampa) #TODO: Poner algun tipo de validacion (aca o en otro lado) que verifique que no somos cazador
         # Para que la ventana detecte teclas
         self.focus_set()
         self.mover_enemigo()
-    
+
+    def bajar_contador_trampa(self):
+        if self.contador_trampa > 0:
+            self.contador_trampa -= 1
+        print(self.contador_trampa)
+        #else:
+            #return
+        
+        #Volvera a llamarse despues de 1 segundo
+        self.after(1000, self.bajar_contador_trampa)
+
+    def poner_trampa(self,event):
+        nf = self.j_fila
+        nc = self.j_col
+
+        if not isinstance(self.mapa[nf][nc], Tunel) and self.contador_trampa == 0:
+            self.mapa[nf][nc] = Trampa()
+            self.contador_trampa = 5  # Cooldown de 5 segundos
+            #print(self.contador_trampa)
+
+            # Dibujamos la trampa
+            x1 = nc * 40  # Aquí estaba invertido
+            y1 = nf * 40
+            x2 = x1 + 40
+            y2 = y1 + 40
+
+            #self.canvas.create_rectangle(x1, y1, x2, y2, fill="lightgreen", outline="gray")
+
+            self.dibujar_camino(x1,y1,x2,y2)
+
+            
+            #Maya diagonal derecha -> \
+            self.canvas.create_line(x1+0, y1+30, x1+5, y1+40, fill="black")
+            self.canvas.create_line(x1+0, y1+20, x1+10, y1+40, fill="black")
+            self.canvas.create_line(x1+0, y1+10, x1+15, y1+40, fill="black")
+            self.canvas.create_line(x1+0, y1+0, x1+20, y1+40, fill="black")
+
+            self.canvas.create_line(x1+5, y1+0, x1+25, y1+40, fill="black")
+            self.canvas.create_line(x1+10, y1+0, x1+30, y1+40, fill="black")
+            self.canvas.create_line(x1+15, y1+0, x1+35, y1+40, fill="black")
+            self.canvas.create_line(x1+20, y1+0, x1+40, y1+40, fill="black")
+            self.canvas.create_line(x1+25, y1+0, x1+40, y1+30, fill="black")
+
+            self.canvas.create_line(x1+30, y1+0, x1+40, y1+20, fill="black")
+            self.canvas.create_line(x1+35, y1+0, x1+40, y1+10, fill="black")
+
+            #Maya diagonal izquierda -> 
+            self.canvas.create_line(x1+40, y1+30, x1+35, y1+40, fill="black")
+            self.canvas.create_line(x1+40, y1+20, x1+30, y1+40, fill="black")
+            self.canvas.create_line(x1+40, y1+10, x1+25, y1+40, fill="black")
+            self.canvas.create_line(x1+40, y1+0, x1+20, y1+40, fill="black")
+
+            self.canvas.create_line(x1+35, y1+0, x1+15, y1+40, fill="black")
+            self.canvas.create_line(x1+30, y1+0, x1+10, y1+40, fill="black")
+            self.canvas.create_line(x1+25, y1+0, x1+5, y1+40, fill="black")
+
+            self.canvas.create_line(x1+20, y1+0, x1+0, y1+40, fill="black")
+            self.canvas.create_line(x1+15, y1+0, x1+0, y1+30, fill="black")
+            self.canvas.create_line(x1+10, y1+0, x1+0, y1+20, fill="black")
+            self.canvas.create_line(x1+5, y1+0, x1+0, y1+10, fill="black")
+
+
+            self.dibujar_jugador()
+
+            #print("Poner trampa")
+
+            self.bajar_contador_trampa()
+
+    def cazador_palma(self):
+
+        #Cada elemento en el grafico lo eliminamos graficamente
+        for elemento in self.enemigo_grafico:
+            self.canvas.delete(elemento)
+        
+        # La lista con el grafico del enemigo es reiniciado
+        self.enemigo_grafico = []
+        
+        # Poner al enemigo fuera del mapa
+        self.e_fila = -1
+        self.e_col = -1
+
+        print("Cazadol GGs")
+
+    def dibujar_camino(self,x1,y1,x2,y2):
+        self.canvas.create_rectangle(x1, y1, x2, y2, fill="lightgreen", outline="gray")
+
+        self.canvas.create_line(x1+10, y1+33, x1+13, y1+30, fill="darkgreen")
+        self.canvas.create_line(x1+10, y1+13, x1+13, y1+10, fill="darkgreen")
+
+        self.canvas.create_line(x1+15, y1+20, x1+18, y1+17, fill="darkgreen")
+
+        self.canvas.create_line(x1+25, y1+10, x1+28, y1+7, fill="darkgreen")
+        self.canvas.create_line(x1+26, y1+28, x1+29, y1+25, fill="darkgreen")
+
+        self.canvas.create_line(x1+33, y1+13, x1+36, y1+10, fill="darkgreen")
+        self.canvas.create_line(x1+33, y1+33, x1+36, y1+30, fill="darkgreen")
+
     # Dibuja cada casilla para el mapa
     def dibujar_mapa(self):
         tam = 40  # tamaño de cada casilla (40x40 px)
@@ -246,16 +354,16 @@ class VentanaJuego(tk.Toplevel):
                 y2 = y1 + tam
 
                 if casilla == "c":
-                    self.canvas.create_rectangle(x1, y1, x2, y2, fill="lightgray", outline="gray")
+                    self.dibujar_camino(x1,y1,x2,y2)
+
 
                 elif casilla == "m":
 
-                    #Creamos el muro con cada hueco individualmente (queda un poco feo pero like gets job done)
+                    #Creamos el muro
 
                     self.canvas.create_rectangle(x1, y1, x2, y2, 
                                                          fill="#45494B", outline="#45494B"
                                                          )
-                    #muro.append(fondo)
 
                     #Texturas izquierdas
                     self.canvas.create_rectangle(x1+0, y1+0, x1+15, y1+13, 
@@ -286,7 +394,7 @@ class VentanaJuego(tk.Toplevel):
 
                 elif casilla == "l":
 
-                    self.canvas.create_rectangle(x1, y1, x2, y2, fill="lightgray", outline="gray")
+                    self.canvas.create_rectangle(x1, y1, x2, y2, fill="lightgreen", outline="gray")
 
                     #Primera parte de las 3 lianas - outlines oscuros primero
                     self.canvas.create_rectangle(x1+9, y1+0, x1+14, y1+15, 
@@ -462,7 +570,7 @@ class VentanaJuego(tk.Toplevel):
 
         # Sombrero - parte grande (ala)
         sombrero_bottom = self.canvas.create_rectangle(
-            x_base + 8, y_base + 4,       # Justo debajo del pico
+            x_base + 8, y_base + 4,       
             x_base + 32, y_base + 8,
             fill="saddlebrown", outline="black"
         )
@@ -573,7 +681,12 @@ class VentanaJuego(tk.Toplevel):
             return
 
         #Aqui se cambia la velocidad a la que se mueve el enemigo
-        self.after(400, self.mover_enemigo)
+        self.after(100, self.mover_enemigo)
+
+        casilla_actual = self.mapa[self.e_fila][self.e_col]
+
+        if isinstance(casilla_actual, Trampa): #TODO: AGREGAR VERIFICACION DE SI EL ENEMIGO ES CAZADOR O CASADO (pun intended)
+            self.cazador_palma()
 
 #---------------------------PROGRAMA PRINCIPAL---------------------------
 if __name__ == "__main__":
