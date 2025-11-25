@@ -203,7 +203,7 @@ class VentanaJuego(tk.Toplevel):
         self.title("Juego")
 
          # Crear canvas donde se dibuja el mapa
-        self.canvas = tk.Canvas(self, width=400, height=400)
+        self.canvas = tk.Canvas(self, width=400, height=450)
         self.canvas.pack()
 
         # Generar el mapa real
@@ -220,8 +220,10 @@ class VentanaJuego(tk.Toplevel):
         self.e_fila = 9
         self.e_col = 9
 
-        # Inicializar el contador de trampa como atributo
+        # Inicializar el contador de trampa
         self.contador_trampa = 0
+        self.trampas_activas = []
+        self.contador_activo = False
 
         # Dibujar el mapa
         self.dibujar_mapa()
@@ -245,12 +247,13 @@ class VentanaJuego(tk.Toplevel):
     def bajar_contador_trampa(self):
         if self.contador_trampa > 0:
             self.contador_trampa -= 1
-        print(self.contador_trampa)
-        #else:
-            #return
+            self.after(1000, self.bajar_contador_trampa)
+        #print(self.contador_trampa)
+        else:
+            self.contador_activo = False  # Marcar que terminó el contador
         
         #Volvera a llamarse despues de 1 segundo
-        self.after(1000, self.bajar_contador_trampa)
+        
 
     def poner_trampa(self,event):
         nf = self.j_fila
@@ -259,14 +262,30 @@ class VentanaJuego(tk.Toplevel):
         if not isinstance(self.mapa[nf][nc], Tunel) and self.contador_trampa == 0:
             self.mapa[nf][nc] = Trampa()
             self.contador_trampa = 5  # Cooldown de 5 segundos
-            #print(self.contador_trampa)
+            self.trampas_activas.append((nf,nc))
+
+            
+            
+            if len(self.trampas_activas) > 3:
+                coordenadas_trampa_vieja = self.trampas_activas.pop(0)
+                print(coordenadas_trampa_vieja)
+                nf_eliminar = coordenadas_trampa_vieja[0]
+                nc_eliminar = coordenadas_trampa_vieja[1]
+                self.mapa[nf_eliminar][nc_eliminar] = Camino()
+
+                x1 = nc_eliminar * 40  
+                y1 = nf_eliminar * 40
+                x2 = x1 + 40
+                y2 = y1 + 40
+
+                self.dibujar_camino(x1,y1,x2,y2)
 
             # Dibujamos la trampa
-            x1 = nc * 40  # Aquí estaba invertido
+            x1 = nc * 40  
             y1 = nf * 40
             x2 = x1 + 40
-            y2 = y1 + 40
-
+            y2 = y1 + 40    
+            
             #self.canvas.create_rectangle(x1, y1, x2, y2, fill="lightgreen", outline="gray")
 
             self.dibujar_camino(x1,y1,x2,y2)
@@ -307,7 +326,9 @@ class VentanaJuego(tk.Toplevel):
 
             #print("Poner trampa")
 
-            self.bajar_contador_trampa()
+            if not self.contador_activo:  # ← Agregar esta verificación
+                self.contador_activo = True
+                self.bajar_contador_trampa()
 
     def cazador_palma(self):
 
