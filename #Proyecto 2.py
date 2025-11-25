@@ -5,6 +5,7 @@
 
 #---------------------------IMPORTS---------------------------
 import tkinter as tk
+from tkinter import messagebox
 import json
 import os
 import random
@@ -84,27 +85,95 @@ class Mapa:
 
 
 class GeneradorMapa:
-    def __init__ (self):   #Porbabilidad que tiene cada tipo de casilla
-        self.prob_camino= 0.60
-        self.prob_muro= 0.20
-        self.prob_liana= 0.10
-        self.prob_tunel= 0.10
+    def __init__ (self):   # Probabilidad que tiene cada tipo de casilla
+        self.prob_camino = 0.60
+        self.prob_muro   = 0.20
+        self.prob_liana  = 0.10
+        self.prob_tunel  = 0.10
+
+        # Coordenadas de la salida (se llenan al generar el mapa)
+        self.salida_fila = None
+        self.salida_col = None
 
     def generar(self):
-        # Crear una matriz 10x10 con casillas aleatorias
-        # ====== NO VALIDA QUE ESTE LA SALIDA SI O SI======
-        matriz = []
+        # Genera mapas hasta que encuentre uno con camino válido
+        while True:
+            matriz = self._generar_matriz_basica()
 
+            # Forzamos inicio y cazador a ser camino
+            matriz[0][0] = Camino()     # jugador
+            matriz[9][9] = Camino()     # enemigo
+
+            # Elegir salida en el borde (no (0,0) ni (9,9))
+            sf, sc = self._elegir_salida_borde()
+            matriz[sf][sc] = Camino()   # aseguramos que la salida sea transitable
+
+            # Verificar si hay camino desde (0,0) hasta (sf, sc)
+            if self._hay_camino(matriz, 0, 0, sf, sc):
+                self.salida_fila = sf
+                self.salida_col = sc
+                return matriz
+            # Si no hay camino, vuelve a generar otra matriz
+
+    def _generar_matriz_basica(self):
+        matriz = []
         for f in range(10):
             fila = []
             for c in range(10):
                 fila.append(self.elegir_casilla())
             matriz.append(fila)
-
         return matriz
-    
+
+    def _elegir_salida_borde(self):
+        posiciones = []
+        n = 10
+
+        # Borde superior e inferior
+        for c in range(n):
+            posiciones.append((0, c))
+            posiciones.append((n - 1, c))
+
+        # Borde izquierdo y derecho (sin repetir esquinas)
+        for f in range(1, n - 1):
+            posiciones.append((f, 0))
+            posiciones.append((f, n - 1))
+
+        # Excluir inicio (0,0) y posición del cazador (9,9)
+        posiciones = [p for p in posiciones if p not in [(0, 0), (9, 9)]]
+
+        return random.choice(posiciones)
+
+    def _hay_camino(self, matriz, fi, ci, ff, cf):
+        from collections import deque
+
+        n = len(matriz)
+        visitado = [[False] * n for _ in range(n)]
+        q = deque()
+
+        if not matriz[fi][ci].permite_jugador():
+            return False
+
+        q.append((fi, ci))
+        visitado[fi][ci] = True
+
+        while q:
+            f, c = q.popleft()
+            if f == ff and c == cf:
+                return True
+
+            for df, dc in [(1,0), (-1,0), (0,1), (0,-1)]:
+                nf = f + df
+                nc = c + dc
+
+                if 0 <= nf < n and 0 <= nc < n and not visitado[nf][nc]:
+                    if matriz[nf][nc].permite_jugador():
+                        visitado[nf][nc] = True
+                        q.append((nf, nc))
+
+        return False
+
     def elegir_casilla(self):
-        x= random.random()  #es un numero random entre 0 y 1
+        x = random.random()  # es un numero random entre 0 y 1
 
         if x < self.prob_camino:
             return Camino()
@@ -183,7 +252,7 @@ class VentanaMenu(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Menú principal")
-        self.geometry("300x200")
+        self.geometry("400x300")
 
         tk.Button(self, text="Registrar jugador",
                   command=self.abrir_registro).pack(pady=10)
@@ -209,6 +278,10 @@ class VentanaJuego(tk.Toplevel):
         # Generar el mapa real
         generador = GeneradorMapa()
         self.mapa = generador.generar()
+
+        # Guardar la salida
+        self.s_fila = generador.salida_fila
+        self.s_col = generador.salida_col
 
         #Posicion inicial del jugador
         self.j_fila= 0
@@ -359,162 +432,117 @@ class VentanaJuego(tk.Toplevel):
         self.canvas.create_line(x1+33, y1+13, x1+36, y1+10, fill="darkgreen")
         self.canvas.create_line(x1+33, y1+33, x1+36, y1+30, fill="darkgreen")
 
+    def dibujar_salida(self, x1, y1, x2, y2):
+        # Dibujar base del piso (camino)
+        self.dibujar_camino(x1, y1, x2, y2)
+
+        # Dibujar marco de la puerta
+        self.canvas.create_rectangle(
+            x1 + 8, y1 + 6,
+            x2 - 8, y2 - 4,
+            fill="#8B4513", outline="black"
+        )
+
+        # Dividir como puerta doble
+        self.canvas.create_line(
+            (x1 + x2) // 2, y1 + 6,
+            (x1 + x2) // 2, y2 - 4,
+            fill="black"
+        )
+
+        # Manija
+        self.canvas.create_oval(
+            x2 - 14, (y1 + y2) // 2 - 2,
+            x2 - 10, (y1 + y2) // 2 + 2,
+            fill="gold", outline="black"
+        )
+
     # Dibuja cada casilla para el mapa
     def dibujar_mapa(self):
         tam = 40  # tamaño de cada casilla (40x40 px)
-        #self.muros
 
         for f in range(10):
             for c in range(10):
-                casilla = self.mapa[f][c]
-                casilla = cargar_casilla(casilla) #TODO: CAMBIAR NOMBRE DE ESTA FUNCION O ELIMINARLA POR COMPLETO IDK , CAMBIAR NOMBRE A elegir_casilla POR EJEMPLO
-          
+                casilla = cargar_casilla(self.mapa[f][c])
+
                 x1 = c * tam
                 y1 = f * tam
                 x2 = x1 + tam
                 y2 = y1 + tam
 
+                #--------------------------- CAMINO ---------------------------
                 if casilla == "c":
-                    self.dibujar_camino(x1,y1,x2,y2)
 
+                    # Si esta casilla es la salida → dibujar puerta
+                    if f == self.s_fila and c == self.s_col:
+                        self.dibujar_salida(x1, y1, x2, y2)
+                    else:
+                        self.dibujar_camino(x1, y1, x2, y2)
 
+                #--------------------------- MURO ---------------------------
                 elif casilla == "m":
 
-                    #Creamos el muro
+                    # Fondo del muro
+                    self.canvas.create_rectangle(
+                        x1, y1, x2, y2,
+                        fill="#45494B", outline="#45494B"
+                    )
 
-                    self.canvas.create_rectangle(x1, y1, x2, y2, 
-                                                         fill="#45494B", outline="#45494B"
-                                                         )
+                    # Texturas izquierda
+                    self.canvas.create_rectangle(x1+0,  y1+0,  x1+15, y1+13, fill="#282A2B", outline="")
+                    self.canvas.create_rectangle(x1+0,  y1+15, x1+30, y1+28, fill="#282A2B", outline="")
+                    self.canvas.create_rectangle(x1+0,  y1+30, x1+15, y1+40, fill="#282A2B", outline="")
 
-                    #Texturas izquierdas
-                    self.canvas.create_rectangle(x1+0, y1+0, x1+15, y1+13, 
-                                                         fill="#282A2B", outline=""
-                                                         )
-                    
-                    self.canvas.create_rectangle(x1+0, y1+15, x1+30, y1+28, 
-                                                         fill="#282A2B", outline=""
-                                                         )
-                    
-                    self.canvas.create_rectangle(x1+0, y1+30, x1+15, y1+40, 
-                                                         fill="#282A2B", outline=""
-                                                         )
-                    
-                    #Texturas derechas
-                    self.canvas.create_rectangle(x1+17, y1+0, x1+40, y1+13, 
-                                                         fill="#282A2B", outline=""
-                                                         )
-                    
-                    self.canvas.create_rectangle(x1+32, y1+15, x1+40, y1+28, 
-                                                         fill="#282A2B", outline=""
-                                                         )
-                    
-                    self.canvas.create_rectangle(x1+17, y1+30, x1+40, y1+40, 
-                                                         fill="#282A2B", outline=""
-                                                         )
+                    # Texturas derecha
+                    self.canvas.create_rectangle(x1+17, y1+0,  x1+40, y1+13, fill="#282A2B", outline="")
+                    self.canvas.create_rectangle(x1+32, y1+15, x1+40, y1+28, fill="#282A2B", outline="")
+                    self.canvas.create_rectangle(x1+17, y1+30, x1+40, y1+40, fill="#282A2B", outline="")
 
-
+                #--------------------------- LIANA ---------------------------
                 elif casilla == "l":
 
+                    # Fondo
                     self.canvas.create_rectangle(x1, y1, x2, y2, fill="lightgreen", outline="gray")
 
-                    #Primera parte de las 3 lianas - outlines oscuros primero
-                    self.canvas.create_rectangle(x1+9, y1+0, x1+14, y1+15, 
-                                                         fill="#1A5827", outline="#193F21"
-                                                         )
-                    
-                    self.canvas.create_rectangle(x1+19, y1+0, x1+24, y1+15, 
-                                                         fill="#1A5827", outline="#193F21"
-                                                         )
-                    
-                    self.canvas.create_rectangle(x1+29, y1+0, x1+34, y1+15, 
-                                                         fill="#1A5827", outline="#193F21"
-                                                         )
-                    
-                    #Primera parte de las 3 lianas - colores claros encima
-                    self.canvas.create_rectangle(x1+10, y1+0, x1+13, y1+15, 
-                                                         fill="#14C43A", outline="#14C43A"
-                                                         )
-                    
-                    self.canvas.create_rectangle(x1+20, y1+0, x1+23, y1+15, 
-                                                         fill="#14C43A", outline="#14C43A"
-                                                         )
-                    
-                    self.canvas.create_rectangle(x1+30, y1+0, x1+33, y1+15, 
-                                                         fill="#14C43A", outline="#14C43A"
-                                                         )
-                    
-                    #Parte media de las 3 lianas - outlines oscuros primero
-                    self.canvas.create_rectangle(x1+11, y1+15, x1+16, y1+30, 
-                                                         fill="#1A5827", outline="#193F21"
-                                                         )
-                    
-                    self.canvas.create_rectangle(x1+21, y1+15, x1+26, y1+30, 
-                                                         fill="#1A5827", outline="#193F21"
-                                                         )
-                    
-                    self.canvas.create_rectangle(x1+31, y1+15, x1+36, y1+30, 
-                                                         fill="#1A5827", outline="#193F21"
-                                                         )
-                    
-                    #Parte media de las 3 lianas - colores claros encima
-                    self.canvas.create_rectangle(x1+12, y1+15, x1+15, y1+30, 
-                                                         fill="#14C43A", outline="#14C43A"
-                                                         )
-                    
-                    self.canvas.create_rectangle(x1+22, y1+15, x1+25, y1+30, 
-                                                         fill="#14C43A", outline="#14C43A"
-                                                         )
-                    
-                    self.canvas.create_rectangle(x1+32, y1+15, x1+35, y1+30, 
-                                                         fill="#14C43A", outline="#14C43A"
-                                                         )
-                    
-                    #Parte baja de las 3 lianas - outlines oscuros primero
-                    self.canvas.create_rectangle(x1+9, y1+30, x1+14, y1+37, 
-                                                         fill="#1A5827", outline="#193F21"
-                                                         )
-                    
-                    self.canvas.create_rectangle(x1+19, y1+30, x1+24, y1+37, 
-                                                         fill="#1A5827", outline="#193F21"
-                                                         )
-                    
-                    self.canvas.create_rectangle(x1+29, y1+30, x1+34, y1+37, 
-                                                         fill="#1A5827", outline="#193F21"
-                                                         )
-                    
-                    #Parte baja de las 3 lianas - colores claros encima
-                    self.canvas.create_rectangle(x1+10, y1+30, x1+13, y1+37, 
-                                                         fill="#14C43A", outline="#14C43A"
-                                                         )
-                    
-                    self.canvas.create_rectangle(x1+20, y1+30, x1+23, y1+37, 
-                                                         fill="#14C43A", outline="#14C43A"
-                                                         )
-                    
-                    self.canvas.create_rectangle(x1+30, y1+30, x1+33, y1+37, 
-                                                         fill="#14C43A", outline="#14C43A"
-                                                         )
+                    # Lianas – parte alta (3)
+                    self.canvas.create_rectangle(x1+9,  y1+0, x1+14, y1+15, fill="#1A5827", outline="#193F21")
+                    self.canvas.create_rectangle(x1+19, y1+0, x1+24, y1+15, fill="#1A5827", outline="#193F21")
+                    self.canvas.create_rectangle(x1+29, y1+0, x1+34, y1+15, fill="#1A5827", outline="#193F21")
 
+                    # Lianas – parte alta (color claro)
+                    self.canvas.create_rectangle(x1+10, y1+0, x1+13, y1+15, fill="#14C43A", outline="#14C43A")
+                    self.canvas.create_rectangle(x1+20, y1+0, x1+23, y1+15, fill="#14C43A", outline="#14C43A")
+                    self.canvas.create_rectangle(x1+30, y1+0, x1+33, y1+15, fill="#14C43A", outline="#14C43A")
 
+                    # Lianas – parte media (oscuro)
+                    self.canvas.create_rectangle(x1+11, y1+15, x1+16, y1+30, fill="#1A5827", outline="#193F21")
+                    self.canvas.create_rectangle(x1+21, y1+15, x1+26, y1+30, fill="#1A5827", outline="#193F21")
+                    self.canvas.create_rectangle(x1+31, y1+15, x1+36, y1+30, fill="#1A5827", outline="#193F21")
+
+                    # Lianas – parte media (claro)
+                    self.canvas.create_rectangle(x1+12, y1+15, x1+15, y1+30, fill="#14C43A", outline="#14C43A")
+                    self.canvas.create_rectangle(x1+22, y1+15, x1+25, y1+30, fill="#14C43A", outline="#14C43A")
+                    self.canvas.create_rectangle(x1+32, y1+15, x1+35, y1+30, fill="#14C43A", outline="#14C43A")
+
+                    # Lianas – parte baja (oscuro)
+                    self.canvas.create_rectangle(x1+9,  y1+30, x1+14, y1+37, fill="#1A5827", outline="#193F21")
+                    self.canvas.create_rectangle(x1+19, y1+30, x1+24, y1+37, fill="#1A5827", outline="#193F21")
+                    self.canvas.create_rectangle(x1+29, y1+30, x1+34, y1+37, fill="#1A5827", outline="#193F21")
+
+                    # Lianas – parte baja (claro)
+                    self.canvas.create_rectangle(x1+10, y1+30, x1+13, y1+37, fill="#14C43A", outline="#14C43A")
+                    self.canvas.create_rectangle(x1+20, y1+30, x1+23, y1+37, fill="#14C43A", outline="#14C43A")
+                    self.canvas.create_rectangle(x1+30, y1+30, x1+33, y1+37, fill="#14C43A", outline="#14C43A")
+
+                #--------------------------- TÚNEL ---------------------------
                 else:
+                    # Fondo
                     self.canvas.create_rectangle(x1, y1, x2, y2, fill="#686262")
 
-                    #Crearemos la parte de adentro de el tunel (Rectangulos stacked up cada vez mas pequeños)
-                    self.canvas.create_rectangle(x1+10, y1+25, x1+30, y1+40, 
-                                                         fill="#333030", outline="#333030"
-                                                         )
-                    
-                    self.canvas.create_rectangle(x1+15, y1+15, x1+25, y1+25, 
-                                                         fill="#333030", outline="#333030"
-                                                         )
-                    
-                    self.canvas.create_rectangle(x1+19, y1+10, x1+21, y1+15, 
-                                                         fill="#333030", outline="#333030"
-                                                         )
-
-
-
-                #self.canvas.create_rectangle(x1, y1, x2, y2, fill="color_de_casilla", outline="gray")
+                    # Capas del túnel
+                    self.canvas.create_rectangle(x1+10, y1+25, x1+30, y2, fill="#333030", outline="#333030")
+                    self.canvas.create_rectangle(x1+15, y1+15, x1+25, y1+25, fill="#333030", outline="#333030")
+                    self.canvas.create_rectangle(x1+19, y1+10, x1+21, y1+15, fill="#333030", outline="#333030")
 
     def dibujar_jugador(self):
 
@@ -654,6 +682,12 @@ class VentanaJuego(tk.Toplevel):
             for elemento in self.jugador_grafico:
                 self.canvas.move(elemento, dc * self.tam, df * self.tam)
 
+            # Verificar si llegó a la salida
+                if self.j_fila == self.s_fila and self.j_col == self.s_col:
+                    messagebox.showinfo("Victoria", "¡Has llegado a la salida!")
+                    self.destroy()
+                    return
+
     #Movimientos del jugador
     def mover_arriba(self, event):
         self.mover(-1, 0)
@@ -698,7 +732,8 @@ class VentanaJuego(tk.Toplevel):
 
         # Para saber si me atrapo (por ahora :p)
         if self.e_fila == self.j_fila and self.e_col == self.j_col:
-            print("¡Te atraparon!")
+            messagebox.showerror("Derrota", "Te atraparon\nPerdiste.")
+            self.destroy()  # cerrar la ventana del juego
             return
 
         #Aqui se cambia la velocidad a la que se mueve el enemigo
