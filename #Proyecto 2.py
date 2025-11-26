@@ -245,9 +245,9 @@ class Puntajes:
 
         
         with open(RUTA_PUNTAJES, "w") as f:
-            json.dump(datos, f, indent=4) 
+            json.dump(datos, f, indent=4)
 
-    def top_5(self, modo):
+    def extraer_top_5(self, modo):
         with open(RUTA_PUNTAJES, "r") as f:
             datos = json.load(f)
         return datos[modo][:5]
@@ -289,6 +289,55 @@ class VentanaRegistro(tk.Toplevel):
             self.nombre_jugador = nombre
             self.destroy()
 
+class VentanaElegirTop(tk.Toplevel):
+    def __init__(self,parent):
+        super().__init__(parent)
+        self.title("Top Globales")
+        self.geometry("200x200")
+
+        tk.Label(self, text="Elige el top que quieres abrir:").pack()
+
+        tk.Button(self, text="Top de Escapadores", command=self.abrir_top_escapadores).pack(pady=10)
+
+        tk.Button(self, text="Top de Cazadores", command=self.abrir_top_cazadores).pack(pady=10) #TODO: Validacion para no agregar el mismo username al top multiples veces (este esta opcional en realidad creo q se puede dejar como esta)
+
+    def abrir_top_escapadores(self):
+        puntajes = Puntajes()
+        top_5 = puntajes.extraer_top_5("escapa")
+        self.mostrar_top(top_5, "Escapadores")
+
+    def abrir_top_cazadores(self):
+        puntajes = Puntajes()
+        top_5 = puntajes.extraer_top_5("cazador")
+        self.mostrar_top(top_5, "Cazadores")
+
+    def mostrar_top(self, datos, titulo):   
+            # Crear nueva ventana para mostrar el top
+            ventana_top = tk.Toplevel(self)
+            ventana_top.title(f"Top 5 - {titulo}")
+            ventana_top.geometry("500x400")
+
+            tk.Label(ventana_top, text=f"Top 5 {titulo}", font=("Arial", 10, "bold")).pack(pady=10)
+
+            frame_top = tk.Frame(ventana_top)
+            frame_top.pack(pady=10, padx=10, fill="both", expand=True)
+
+            tk.Label(frame_top, text="Posición", font=("Arial", 10, "bold"), width=12).pack(anchor="w")
+            tk.Label(frame_top, text="Nombre", font=("Arial", 10, "bold"), width=20).pack(anchor="w")
+            tk.Label(frame_top, text="Puntaje", font=("Arial", 10, "bold"), width=12).pack(anchor="w")     
+
+            for i, jugador in enumerate(datos, 1):
+                nombre = jugador["nombre"]
+                puntaje = jugador["puntaje"]
+                
+                # Crear label con la información formateada
+                label_fila = tk.Label(
+                    frame_top,
+                    text=f"{i}. {nombre:<20} {puntaje}",
+                    font=("Arial", 10),
+                )
+                label_fila.pack(anchor="w", pady=5)
+
 class VentanaMenu(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -299,6 +348,9 @@ class VentanaMenu(tk.Tk):
         tk.Button(self, text="Registrar jugador",
                   command=self.abrir_registro).pack(pady=10)
         
+        tk.Button(self, text="Top Globales",
+                  command=self.abrir_top).pack(pady=10)
+        
         tk.Button(self, text="Iniciar juego",
                   command=self.abrir_juego).pack(pady=10)
 
@@ -306,6 +358,10 @@ class VentanaMenu(tk.Tk):
         ventana_registro = VentanaRegistro(self)
         self.wait_window(ventana_registro)
         self.nombre_guardado = ventana_registro.nombre_jugador
+
+    def abrir_top(self):
+        ventana_top = VentanaElegirTop(self)
+        self.wait_window(ventana_top)
 
     def abrir_juego(self):
         if self.nombre_guardado:
@@ -378,6 +434,25 @@ class VentanaJuego(tk.Toplevel):
         self.focus_set()
         self.mover_enemigo()
 
+    def eliminar_trampa(self,nf_eliminar,nc_eliminar):
+
+        self.mapa[nf_eliminar][nc_eliminar] = Camino()
+
+         # Buscar y eliminar la coordenada de la lista de trampas activas
+        for i, (nf, nc) in enumerate(self.trampas_activas):
+            if nf == nf_eliminar and nc == nc_eliminar:
+                self.trampas_activas.pop(i)
+                break  
+
+        #Redibujamos camino
+        x1 = nc_eliminar * 40  
+        y1 = nf_eliminar * 40
+        x2 = x1 + 40
+        y2 = y1 + 40
+
+        self.dibujar_camino(x1,y1,x2,y2)
+        return
+
     def bajar_contador_trampa(self):
         if self.contador_trampa > 0:
             self.contador_trampa -= 1
@@ -405,14 +480,8 @@ class VentanaJuego(tk.Toplevel):
                 print(coordenadas_trampa_vieja)
                 nf_eliminar = coordenadas_trampa_vieja[0]
                 nc_eliminar = coordenadas_trampa_vieja[1]
-                self.mapa[nf_eliminar][nc_eliminar] = Camino()
-
-                x1 = nc_eliminar * 40  
-                y1 = nf_eliminar * 40
-                x2 = x1 + 40
-                y2 = y1 + 40
-
-                self.dibujar_camino(x1,y1,x2,y2)
+                self.eliminar_trampa(nf_eliminar,nc_eliminar)
+                #self.mapa[nf_eliminar][nc_eliminar] = Camino()
 
             # Dibujamos la trampa
             x1 = nc * 40  
@@ -460,7 +529,7 @@ class VentanaJuego(tk.Toplevel):
 
             print("Poner trampa")
 
-            if not self.contador_activo:  # TODO: A las trampas en general agregar que la trampa que eliminar al enemigo, sea eliminada
+            if not self.contador_activo: 
                 self.contador_activo = True
                 self.bajar_contador_trampa()
 
@@ -478,6 +547,7 @@ class VentanaJuego(tk.Toplevel):
         self.e_col = -1
 
         print("Cazadol GGs")
+        return
 
     def dibujar_camino(self,x1,y1,x2,y2):
         self.canvas.create_rectangle(x1, y1, x2, y2, fill="lightgreen", outline="gray")
@@ -760,7 +830,7 @@ class VentanaJuego(tk.Toplevel):
 
                 puntajes = Puntajes()
                 puntajes.agregar(self.jugador.nombre, puntaje_ganado, "escapa")
-                messagebox.showinfo("Victoria", "¡Has llegado a la salida!")
+                messagebox.showinfo("Victoria", "¡Has llegado a la salida!") #TODO: detener ejecucion al terminar el juego, osea al ganar no poderse seguir moviendo.
                 self.destroy()
                 return
 
@@ -816,13 +886,16 @@ class VentanaJuego(tk.Toplevel):
             self.destroy()  # cerrar la ventana del juego
             return
 
-        #Aqui se cambia la velocidad a la que se mueve el enemigo
-        self.after(200, self.mover_enemigo)
-
         casilla_actual = self.mapa[self.e_fila][self.e_col]
 
         if isinstance(casilla_actual, Trampa): #TODO: AGREGAR VERIFICACION DE SI EL ENEMIGO ES CAZADOR O CASADO (pun intended)
+            self.eliminar_trampa(self.e_fila,self.e_col)
             self.cazador_palma()
+            return
+        
+        #Aqui se cambia la velocidad a la que se mueve el enemigo (VELOCIDAD ENEMIGO)
+        self.after(300, self.mover_enemigo)
+            
 
 class Ventana_modo_de_juego(tk.Toplevel):
     def __init__(self, parent, nombre_jugador):
