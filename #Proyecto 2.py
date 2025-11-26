@@ -201,6 +201,12 @@ class Jugador:
     def correr(self):
         pass
 
+    def gastar_energia(self, cantidad):
+        if self.energia >= cantidad:
+            self.energia -= cantidad
+            return True
+        return False
+
 
 class Enemigo:
     def __init__(self, fila, col):
@@ -386,6 +392,16 @@ class VentanaJuego(tk.Toplevel):
         # Iniciar timer para poder despues poner puntaje
         self.tiempo_inicio = time.time()
 
+        self.after(300, self.regenerar_energia)
+
+        # Barra de energía
+        self.barra_energia = tk.Canvas(self, width=400, height=20, bg="white")
+        self.barra_energia.pack()
+        self.actualizar_barra_energia()
+
+        # Timer para regenerar energía
+        self.after(300, self.regenerar_energia)
+
          # Crear canvas donde se dibuja el mapa
         self.canvas = tk.Canvas(self, width=400, height=450)
         self.canvas.pack()
@@ -429,6 +445,13 @@ class VentanaJuego(tk.Toplevel):
         self.bind("<Right>", self.mover_derecha)
         self.bind("<space>", self.poner_trampa) #TODO: Poner algun tipo de validacion (aca o en otro lado) que verifique que no somos cazador
         #self.bind("<shift>",self.correr) # TODO: Implementar después
+
+        # Tecla para correr (Shift izquierdo)
+        self.bind("<KeyPress-x>", self.correr)
+        self.bind("<<KeyPress-x>>", self.soltar_correr)
+
+        # Variable para saber si está corriendo
+        self.corriendo = False
 
         # Para que la ventana detecte teclas
         self.focus_set()
@@ -801,38 +824,74 @@ class VentanaJuego(tk.Toplevel):
         casilla= self.mapa[nf][nc]
         return casilla.permite_enemigo()
     
-
-    
     def calcular_puntaje(self,tiempo):
         puntaje = 1000000000
         puntaje = puntaje - (tiempo * 100) #TODO: Al implementar dificultades tendremos que hacer que menos puntaje se le quite
         return puntaje
     
+    #--------------------------- ENERGÍA ---------------------------
+    def actualizar_barra_energia(self):
+        self.barra_energia.delete("all")
 
-    
+        energia = self.jugador.energia
+        largo = int((energia / 100) * 380)
 
+        # Fondo
+        self.barra_energia.create_rectangle(10, 5, 390, 15, outline="black")
+
+        # Energía actual
+        color = "green" if energia > 50 else "orange" if energia > 20 else "red"
+        self.barra_energia.create_rectangle(10, 5, 10 + largo, 15, fill=color)
+
+
+    def regenerar_energia(self):
+        if self.jugador.energia < 100:
+            self.jugador.energia += 1
+            self.actualizar_barra_energia()
+
+        # Vuelve a llamarse cada 300ms
+        self.after(500, self.regenerar_energia)
+
+
+    def correr(self, event):
+        self.corriendo = True
+
+
+    def soltar_correr(self, event):
+        self.corriendo = False
     #-------------- Moverse del jugador --------------
     def mover (self,df,dc):
-        nf = self.j_fila + df
-        nc = self.j_col + dc
+        # ¿Está corriendo?
+        pasos = 2 if self.corriendo and self.jugador.gastar_energia(20) else 1
+        # Si la energía llegó a 0, dejar de correr
+        if self.jugador.energia <= 0:
+            self.corriendo = False
 
-        if self.puede_moverse_a(nf, nc):
-            self.j_fila = nf
-            self.j_col = nc
-            for elemento in self.jugador_grafico:
-                self.canvas.move(elemento, dc * self.tam, df * self.tam)
+        # Actualizar barra siempre
+        self.actualizar_barra_energia()
 
-            # Verificar si llegó a la salida y guardar el puntaje
-            if self.j_fila == self.s_fila and self.j_col == self.s_col:
+        for _ in range(pasos):
+            nf = self.j_fila + df
+            nc = self.j_col + dc
 
-                tiempo_transcurrido = int(time.time() - self.tiempo_inicio)
-                puntaje_ganado = self.calcular_puntaje(tiempo_transcurrido)
+            if self.puede_moverse_a(nf, nc):
+                self.j_fila = nf
+                self.j_col = nc
+                for elemento in self.jugador_grafico:
+                    self.canvas.move(elemento, dc * self.tam, df * self.tam)
 
-                puntajes = Puntajes()
-                puntajes.agregar(self.jugador.nombre, puntaje_ganado, "escapa")
-                messagebox.showinfo("Victoria", "¡Has llegado a la salida!") #TODO: detener ejecucion al terminar el juego, osea al ganar no poderse seguir moviendo.
-                self.destroy()
-                return
+                # Llegó a la salida
+                if self.j_fila == self.s_fila and self.j_col == self.s_col:
+                    tiempo_transcurrido = int(time.time() - self.tiempo_inicio)
+                    puntaje_ganado = self.calcular_puntaje(tiempo_transcurrido)
+
+                    puntajes = Puntajes()
+                    puntajes.agregar(self.jugador.nombre, puntaje_ganado, "escapa")
+                    messagebox.showinfo("Victoria", "¡Has llegado a la salida!")
+                    self.destroy()
+                    return
+            else:
+                break  # Si no puede avanzar más, detener
 
     #Movimientos del jugador
     def mover_arriba(self, event):
@@ -846,10 +905,6 @@ class VentanaJuego(tk.Toplevel):
 
     def mover_derecha(self, event):
         self.mover(0, 1)
-
-    def correr(self, event):
-        """TODO: Implementar lógica de correr"""
-        pass
 
     #-------------- Moverse del enemigo --------------
     def mover_enemigo(self):
