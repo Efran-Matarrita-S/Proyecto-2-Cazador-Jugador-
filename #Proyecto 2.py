@@ -8,10 +8,12 @@ import tkinter as tk
 from tkinter import messagebox
 import json
 import os
+import time
 import random
 
 #---------------------------VARIABLES GLOBALES---------------------------
 RUTA_PUNTAJES = "datos/puntajes.json"
+#nombre_jugador = None
 #contador_trampa = 0
 
 #---------------------------FUNCIONES AUXILIARES---------------------------
@@ -185,14 +187,19 @@ class GeneradorMapa:
             return Tunel()
         
 class Jugador:
-    def __init__(self, fila, col):
+    def __init__(self, fila, col,nombre,modo_de_juego):
         self.fila = fila
         self.col = col
+        self.nombre = nombre
+        self.modo_de_juego = modo_de_juego
         self.energia = 100
 
     def mover(self, df, dc):
         self.fila += df
         self.col += dc
+
+    def correr(self):
+        pass
 
 
 class Enemigo:
@@ -222,37 +229,72 @@ class Trampa:
 class Puntajes:
     def __init__(self):
         if not os.path.exists(RUTA_PUNTAJES):
+            os.makedirs("datos")
+        if not os.path.exists(RUTA_PUNTAJES):
             with open(RUTA_PUNTAJES, "w") as f:
                 json.dump({"escapa": [], "cazador": []}, f)
 
     def agregar(self, nombre, puntaje, modo):
-        pass 
+        with open(RUTA_PUNTAJES, "r") as f:
+            datos = json.load(f)
+        
+        datos[modo].append({"nombre": nombre, "puntaje": puntaje})
+        
+        # Ordenar de MENOR a mayor (menos tiempo = mejor)
+        datos[modo].sort(key=lambda x: x["puntaje"])  #TODO: Revisar como sirve esto lo hizo Claude pero para implementarlo nosotros o dejarlo
+
+        
+        with open(RUTA_PUNTAJES, "w") as f:
+            json.dump(datos, f, indent=4) 
 
     def top_5(self, modo):
-        pass
+        with open(RUTA_PUNTAJES, "r") as f:
+            datos = json.load(f)
+        return datos[modo][:5]
 
 
 class Registro:
-    def validar(self, nombre):
-        return len(nombre.strip()) > 0
+    def validar_registrar(self, nombre, label_error):
+        if len(nombre.strip()) > 0:
+            label_error.config(text="")
+            #print(f"Válido")
+            return True
+        else:
+            label_error.config(text="El nombre no puede estar vacío")
+            #print(f"No Válido")
+            return False   
 
 #---------------------------INTERFAZ GRÁFICA---------------------------
 
 class VentanaRegistro(tk.Toplevel):
-    def __init__(self):
-        super().__init__()
+    def __init__(self,parent):
+        super().__init__(parent)
         self.title("Registro")
-        self.geometry("500x500")
+        self.geometry("200x200")
+        self.nombre_jugador = None
 
         tk.Label(self, text="Nombre del jugador:").pack()
         self.entry = tk.Entry(self)
         self.entry.pack()
+
+        tk.Button(self, text="Registrar", command=self.registrar).pack(pady=10)
+        
+        self.label_error = tk.Label(self, text="", fg="red")
+        self.label_error.pack()
+
+    def registrar(self):
+        nombre = self.entry.get()
+        registro = Registro()
+        if registro.validar_registrar(nombre, self.label_error):
+            self.nombre_jugador = nombre
+            self.destroy()
 
 class VentanaMenu(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Menú principal")
         self.geometry("400x300")
+        self.nombre_guardado = None
 
         tk.Button(self, text="Registrar jugador",
                   command=self.abrir_registro).pack(pady=10)
@@ -261,15 +303,32 @@ class VentanaMenu(tk.Tk):
                   command=self.abrir_juego).pack(pady=10)
 
     def abrir_registro(self):
-        VentanaRegistro()
+        ventana_registro = VentanaRegistro(self)
+        self.wait_window(ventana_registro)
+        self.nombre_guardado = ventana_registro.nombre_jugador
 
     def abrir_juego(self):
-        VentanaJuego()
+        if self.nombre_guardado:
+            # Abrir ventana de selección de modo de juego
+            ventana_modo = Ventana_modo_de_juego(self, self.nombre_guardado)
+            self.wait_window(ventana_modo)
+            
+            if ventana_modo.modo_elegido:
+                VentanaJuego(self.nombre_guardado, ventana_modo.modo_elegido)
+        #else:
+            #messagebox.showwarning("Error:", "Debes registrar un nombre primero") TODO: Descomentar esto
+
 
 class VentanaJuego(tk.Toplevel):
-    def __init__(self):
+    def __init__(self,nombre_jugador,modo_de_juego):
         super().__init__()
         self.title("Juego")
+
+        # Crear el jugador
+        self.jugador = Jugador(0, 0, nombre_jugador,modo_de_juego)
+
+        # Iniciar timer para poder despues poner puntaje
+        self.tiempo_inicio = time.time()
 
          # Crear canvas donde se dibuja el mapa
         self.canvas = tk.Canvas(self, width=400, height=450)
@@ -313,6 +372,8 @@ class VentanaJuego(tk.Toplevel):
         self.bind("<Left>", self.mover_izquierda)
         self.bind("<Right>", self.mover_derecha)
         self.bind("<space>", self.poner_trampa) #TODO: Poner algun tipo de validacion (aca o en otro lado) que verifique que no somos cazador
+        #self.bind("<shift>",self.correr) # TODO: Implementar después
+
         # Para que la ventana detecte teclas
         self.focus_set()
         self.mover_enemigo()
@@ -321,7 +382,7 @@ class VentanaJuego(tk.Toplevel):
         if self.contador_trampa > 0:
             self.contador_trampa -= 1
             self.after(1000, self.bajar_contador_trampa)
-        #print(self.contador_trampa)
+            print(self.contador_trampa)
         else:
             self.contador_activo = False  # Marcar que terminó el contador
         
@@ -397,9 +458,9 @@ class VentanaJuego(tk.Toplevel):
 
             self.dibujar_jugador()
 
-            #print("Poner trampa")
+            print("Poner trampa")
 
-            if not self.contador_activo:  # ← Agregar esta verificación
+            if not self.contador_activo:  # TODO: A las trampas en general agregar que la trampa que eliminar al enemigo, sea eliminada
                 self.contador_activo = True
                 self.bajar_contador_trampa()
 
@@ -671,6 +732,15 @@ class VentanaJuego(tk.Toplevel):
         return casilla.permite_enemigo()
     
 
+    
+    def calcular_puntaje(self,tiempo):
+        puntaje = 1000000000
+        puntaje = puntaje - (tiempo * 100) #TODO: Al implementar dificultades tendremos que hacer que menos puntaje se le quite
+        return puntaje
+    
+
+    
+
     #-------------- Moverse del jugador --------------
     def mover (self,df,dc):
         nf = self.j_fila + df
@@ -682,11 +752,17 @@ class VentanaJuego(tk.Toplevel):
             for elemento in self.jugador_grafico:
                 self.canvas.move(elemento, dc * self.tam, df * self.tam)
 
-            # Verificar si llegó a la salida
-                if self.j_fila == self.s_fila and self.j_col == self.s_col:
-                    messagebox.showinfo("Victoria", "¡Has llegado a la salida!")
-                    self.destroy()
-                    return
+            # Verificar si llegó a la salida y guardar el puntaje
+            if self.j_fila == self.s_fila and self.j_col == self.s_col:
+
+                tiempo_transcurrido = int(time.time() - self.tiempo_inicio)
+                puntaje_ganado = self.calcular_puntaje(tiempo_transcurrido)
+
+                puntajes = Puntajes()
+                puntajes.agregar(self.jugador.nombre, puntaje_ganado, "escapa")
+                messagebox.showinfo("Victoria", "¡Has llegado a la salida!")
+                self.destroy()
+                return
 
     #Movimientos del jugador
     def mover_arriba(self, event):
@@ -700,6 +776,10 @@ class VentanaJuego(tk.Toplevel):
 
     def mover_derecha(self, event):
         self.mover(0, 1)
+
+    def correr(self, event):
+        """TODO: Implementar lógica de correr"""
+        pass
 
     #-------------- Moverse del enemigo --------------
     def mover_enemigo(self):
@@ -728,7 +808,7 @@ class VentanaJuego(tk.Toplevel):
         elif dc != 0 and self.enemigo_moverse_a(self.e_fila, self.e_col + dc):
             self.e_col += dc
             for elemento in self.enemigo_grafico:
-                self.canvas.move(elemento, dc * self.tam, 0)
+                self.canvas.move(elemento, dc * self.tam, 0) #TODO: Agregar que si no puede que intente para abajo
 
         # Para saber si me atrapo (por ahora :p)
         if self.e_fila == self.j_fila and self.e_col == self.j_col:
@@ -737,12 +817,37 @@ class VentanaJuego(tk.Toplevel):
             return
 
         #Aqui se cambia la velocidad a la que se mueve el enemigo
-        self.after(100, self.mover_enemigo)
+        self.after(200, self.mover_enemigo)
 
         casilla_actual = self.mapa[self.e_fila][self.e_col]
 
         if isinstance(casilla_actual, Trampa): #TODO: AGREGAR VERIFICACION DE SI EL ENEMIGO ES CAZADOR O CASADO (pun intended)
             self.cazador_palma()
+
+class Ventana_modo_de_juego(tk.Toplevel):
+    def __init__(self, parent, nombre_jugador):
+        super().__init__(parent)
+        self.title("Seleccion de modo")
+        self.geometry("400x300")
+        self.nombre_jugador = nombre_jugador
+        self.modo_elegido = None
+
+        tk.Label(self, text="Elige modo de juego:", font=("Arial", 10)).pack(pady=20)
+
+        tk.Button(self, text="Escapa", command=self.modo_escapa,
+                  width=15, height=3).pack(pady=10)
+        
+        tk.Button(self, text="Cazador", command=self.modo_cazador,
+                  width=15, height=3).pack(pady=10)
+
+    def modo_escapa(self):
+        self.modo_elegido = "escapa"
+        self.destroy()
+
+    def modo_cazador(self):
+        self.modo_elegido = "cazador"
+        self.destroy()
+
 
 #---------------------------PROGRAMA PRINCIPAL---------------------------
 if __name__ == "__main__":
