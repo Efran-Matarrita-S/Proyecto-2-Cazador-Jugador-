@@ -22,35 +22,38 @@ DIFICULTADES = {
         "regen_energia": 300,
         "costo_correr": 10,
         "max_trampas": 4,
-        "penalizacion": 50
+        "penalizacion": 50,
+        "cantidad_enemigos": 1
     },
     "medio": {
         "vel_enemigo": 250,
         "regen_energia": 500,
         "costo_correr": 20,
         "max_trampas": 3,
-        "penalizacion": 100
+        "penalizacion": 100,
+        "cantidad_enemigos": 2
     },
     "dificil": {
         "vel_enemigo": 130,
         "regen_energia": 700,
         "costo_correr": 30,
         "max_trampas": 2,
-        "penalizacion": 180
+        "penalizacion": 180,
+        "cantidad_enemigos": 3
     }
 }
 
 #---------------------------FUNCIONES AUXILIARES---------------------------
 def cargar_casilla(c): 
     if isinstance(c, Camino):
-        return "c"            #"#bfbfbf"   # gris
+        return "c"            
     if isinstance(c, Muro):
-        return "m"            #"#000000"   # negro
+        return "m"            
     if isinstance(c, Liana):
-        return "l"            #"#2ecc71"   # verde
+        return "l"            
     if isinstance(c, Tunel):
-        return                #"#3498db"   # azul
-    return "t"                #"#ffffff"       # blanco por defeto
+        return                
+    return "t"                
 
 #---------------------------CLASES DEL TERRENO---------------------------
 
@@ -143,10 +146,18 @@ class GeneradorMapa:
 
     def _generar_matriz_basica(self):
         matriz = []
+        casillas_dejar_libre = [(0,0),(0,1),(1,0),
+                                (9,9),(9,8),(9,7),
+                                (8,9),(8,8),(8,7)
+            ]
         for f in range(10):
             fila = []
             for c in range(10):
-                fila.append(self.elegir_casilla())
+                casilla_actual = (f,c)
+                if casilla_actual not in casillas_dejar_libre:
+                    fila.append(self.elegir_casilla())
+                else:
+                    fila.append(Camino())
             matriz.append(fila)
         return matriz
 
@@ -236,10 +247,13 @@ class Enemigo:
     def __init__(self, fila, col):
         self.fila = fila
         self.col = col
+        self.estado = "activo"  # Puede tener 3 estados "activo", "muerto", "reapareciendo"
+        self.tiempo_reaparicion = 0
 
     def mover(self, df, dc):
         self.fila += df
         self.col += dc
+
 
 
 class Trampa:
@@ -439,6 +453,7 @@ class VentanaJuego(tk.Toplevel):
         self.costo_correr = params["costo_correr"]
         self.max_trampas = params["max_trampas"]
         self.penalizacion = params["penalizacion"]
+        self.cantidad_enemigos = params["cantidad_enemigos"]
 
         # Generar el mapa antes de usar salida
         generador = GeneradorMapa()
@@ -503,16 +518,12 @@ class VentanaJuego(tk.Toplevel):
         #Dibujar al jugador
         self.dibujar_jugador()
 
-        # Dibujar enemigo
-        self.dibujar_enemigo()
-
         #Teclas para moverse
         self.bind("<Up>", self.mover_arriba)  
         self.bind("<Down>", self.mover_abajo)
         self.bind("<Left>", self.mover_izquierda)
         self.bind("<Right>", self.mover_derecha)
-        self.bind("<space>", self.poner_trampa) #TODO: Poner algun tipo de validacion (aca o en otro lado) que verifique que no somos cazador
-        #self.bind("<shift>",self.correr) # TODO: Implementar después
+        self.bind("<space>", self.poner_trampa)
 
         # Tecla para correr (Shift izquierdo)
         self.bind("<KeyPress-x>", self.correr)
@@ -521,9 +532,27 @@ class VentanaJuego(tk.Toplevel):
         # Variable para saber si está corriendo
         self.corriendo = False
 
+        #Ahora hacemos el enemigo
+        # Lista de enemigos por si hay varios
+        self.enemigos = []
+
+        # Posiciones iniciales para spawn
+        posiciones_spawn = [(9, 9), (9, 8), (8, 9)]
+
+        for i in range(self.cantidad_enemigos):
+            # Usar posiciones diferentes o la misma si no hay más
+            spawn_f, spawn_c = posiciones_spawn[i] if i < len(posiciones_spawn) else (9, 9) #TODO:Revisar despues como sirve esto porque en realidad creo que no lo necesitamos
+            
+            enemigo = Enemigo(spawn_f, spawn_c)
+            self.enemigos.append(enemigo)
+            self.dibujar_enemigo(enemigo) 
+        
         # Para que la ventana detecte teclas
         self.focus_set()
-        self.mover_enemigo()
+
+        #Movimiento por cada enemigo individual
+        for enemigo in self.enemigos:
+            self.mover_enemigo(enemigo)
 
     def eliminar_trampa(self,nf_eliminar,nc_eliminar):
 
@@ -623,19 +652,51 @@ class VentanaJuego(tk.Toplevel):
                 self.contador_activo = True
                 self.bajar_contador_trampa()
 
-    def cazador_palma(self):
+    def cazador_palma(self, enemigo):
 
         #Cada elemento en el grafico lo eliminamos graficamente
-        for elemento in self.enemigo_grafico:
+        for elemento in enemigo.grafico:
             self.canvas.delete(elemento)
         
         # La lista con el grafico del enemigo es reiniciado
-        self.enemigo_grafico = []
+        enemigo.grafico = []
+
+        enemigo.estado = "muerto"
+        enemigo.tiempo_reaparicion = 10
         
         # Poner al enemigo fuera del mapa
-        self.e_fila = -1
-        self.e_col = -1
-        return
+        enemigo.fila = -1
+        enemigo.col = -1
+
+        # Contador de 10 segundos para reaparecer
+        self.after(1000, lambda: self.contador_reaparicion(enemigo))
+        #return
+    
+    def contador_reaparicion(self, enemigo):
+        enemigo.tiempo_reaparicion -= 1
+
+        #Si timer no terminado recursa, si si respaun
+        if enemigo.tiempo_reaparicion > 0:
+            self.after(1000, lambda: self.contador_reaparicion(enemigo))
+        else:
+            self.respawn_enemigo(enemigo)
+
+    """def reaparece_enemigo(self, enemigo):
+        enemigo.fila = 9
+        enemigo.col = 9
+        #enemigo.estado = "activo"
+        self.respawn_enemigo(enemigo)"""       
+
+    def respawn_enemigo(self,enemigo):
+        # Opción 1: Siempre en la misma esquina
+        enemigo.fila = 9
+        enemigo.col = 9
+
+        enemigo.estado = "activo"
+        
+        # Dibujar de nuevo
+        self.dibujar_enemigo(enemigo) 
+        self.mover_enemigo(enemigo)
 
     def dibujar_camino(self,x1,y1,x2,y2):
         self.canvas.create_rectangle(x1, y1, x2, y2, fill="lightgreen", outline="gray")
@@ -679,10 +740,19 @@ class VentanaJuego(tk.Toplevel):
     # Dibuja cada casilla para el mapa
     def dibujar_mapa(self):
         tam = 40  # tamaño de cada casilla (40x40 px)
+        """casillas_dejar_libre = [(0,0),(0,1),(1,0),
+                                (9,9),(9,8),(9,7),
+                                (8,9),(8,8),(8,7)
+            ]"""
 
         for f in range(10):
             for c in range(10):
-                casilla = cargar_casilla(self.mapa[f][c])
+                casilla_verificar = (f,c)
+                #if casilla_verificar not in casillas_dejar_libre:
+                casilla = cargar_casilla(self.mapa[f][c])                
+                #else:
+                    #casilla = "c" 
+                    #c = Camino()      #not ((f == 9 and c == 9) or (f == 9 and c == 8) or (f == 8 and c == 9)) else c
 
                 x1 = c * tam
                 y1 = f * tam
@@ -762,6 +832,7 @@ class VentanaJuego(tk.Toplevel):
                     self.canvas.create_rectangle(x1+10, y1+25, x1+30, y2, fill="#333030", outline="#333030")
                     self.canvas.create_rectangle(x1+15, y1+15, x1+25, y1+25, fill="#333030", outline="#333030")
                     self.canvas.create_rectangle(x1+19, y1+10, x1+21, y1+15, fill="#333030", outline="#333030")
+
     def jugador_es_cazador(self):
         return self.modo == "cazador"
 
@@ -828,43 +899,42 @@ class VentanaJuego(tk.Toplevel):
             self.jugador_grafico.append(arma_bottom)
   
 
-    def dibujar_enemigo(self):
+    def dibujar_enemigo(self,enemigo):
 
         # borrar gráfico anterior si existe
         if hasattr(self, "enemigo_grafico"):
-            for elem in self.enemigo_grafico:
+            for elem in enemigo.grafico:
                 self.canvas.delete(elem)
 
         #Base del enemigo para ponerle cosas encima
-        x_base = self.e_col * self.tam
-        y_base = self.e_fila * self.tam
+        x_base = enemigo.col * self.tam
+        y_base = enemigo.fila * self.tam
 
-        self.enemigo_grafico = []
+        enemigo.grafico = []
 
-        #sombrero de aventurero
+        #sombrero de aventurero (top)
         sombrero_top = self.canvas.create_rectangle(
-
-            x_base + 12, y_base + 2,    
-            x_base + 28, y_base + 4,
-            fill="saddlebrown", outline="black"
+        x_base + 12, y_base + 2,    
+        x_base + 28, y_base + 4,
+        fill="saddlebrown", outline="black"
         )
-        self.enemigo_grafico.append(sombrero_top)
+        enemigo.grafico.append(sombrero_top)
 
-        # Sombrero - parte grande (ala)
+        # Sombrero - parte de abajo (bottom)
         sombrero_bottom = self.canvas.create_rectangle(
-            x_base + 8, y_base + 4,       
-            x_base + 32, y_base + 8,
-            fill="saddlebrown", outline="black"
+        x_base + 8, y_base + 4,       
+        x_base + 32, y_base + 8,
+        fill="saddlebrown", outline="black"
         )
-        self.enemigo_grafico.append(sombrero_bottom)
+        enemigo.grafico.append(sombrero_bottom)
 
         # Cuerpo
         cuerpo = self.canvas.create_rectangle(
-            x_base + 10, y_base + 10,
-            x_base + 30, y_base + 28,
-            fill="tan", outline="black"
+        x_base + 10, y_base + 10,
+        x_base + 30, y_base + 28,
+        fill="tan", outline="black"
         )
-        self.enemigo_grafico.append(cuerpo)
+        enemigo.grafico.append(cuerpo)
 
         # Camisa: rojo si él es cazador, verde si no
         color_camisa = "red" if self.enemigo_es_cazador() else "green"
@@ -873,7 +943,7 @@ class VentanaJuego(tk.Toplevel):
             x_base + 30, y_base + 40,
             fill=color_camisa, outline="black"
         )
-        self.enemigo_grafico.append(camisa)
+        enemigo.grafico.append(camisa)
 
         # Si el enemigo es cazador entonces arma
         if self.enemigo_es_cazador():
@@ -882,14 +952,14 @@ class VentanaJuego(tk.Toplevel):
                 x_base + 20, y_base + 27,
                 fill="black", outline="black"
             )
-            self.enemigo_grafico.append(arma_top)
+            enemigo.grafico.append(arma_top)
 
             arma_bottom = self.canvas.create_rectangle(
                 x_base + 17, y_base + 27,
                 x_base + 23, y_base + 29,
                 fill="black", outline="black"
             )
-            self.enemigo_grafico.append(arma_bottom)
+            enemigo.grafico.append(arma_bottom)
 
     #Para verificar de que si se pueda mover a lo que quiere moverse
     def puede_moverse_a (self,nf,nc):
@@ -1011,18 +1081,19 @@ class VentanaJuego(tk.Toplevel):
                 # --- Condición de victoria si SOY CAZADOR ---
                 if self.modo == "cazador" and not self.juego_terminado:
                     # Solo si estoy exactamente en la misma casilla del escapador
-                    if self.j_fila == self.e_fila and self.j_col == self.e_col:
-                        self.juego_terminado = True
+                    for enemigo in self.enemigos:
+                        if enemigo.estado == "activo" and self.j_fila == enemigo.fila and self.j_col == enemigo.col:
+                            self.juego_terminado = True
 
-                        tiempo_transcurrido = int(time.time() - self.tiempo_inicio)
-                        puntaje_ganado = self.calcular_puntaje(tiempo_transcurrido)
+                            tiempo_transcurrido = int(time.time() - self.tiempo_inicio)
+                            puntaje_ganado = self.calcular_puntaje(tiempo_transcurrido)
 
-                        puntajes = Puntajes()
-                        puntajes.agregar(self.jugador.nombre, puntaje_ganado, "cazador")
+                            puntajes = Puntajes()
+                            puntajes.agregar(self.jugador.nombre, puntaje_ganado, "cazador")
 
-                        messagebox.showinfo("Victoria", "¡Atrapaste al escapador!")
-                        self.destroy()
-                        return
+                            messagebox.showinfo("Victoria", "¡Atrapaste al escapador!")
+                            self.destroy()
+                            return
 
             else:
                 break  # Si no puede avanzar más, detener
@@ -1094,9 +1165,9 @@ class VentanaJuego(tk.Toplevel):
 
 
     #-------------- Moverse del enemigo --------------
-    def mover_enemigo(self):
+    def mover_enemigo(self,enemigo):
         if self.juego_terminado:
-            return  #se deja de move cuando el jugador alla ganado o perdido
+            return  #se deja de move cuando el jugador haya ganado o perdido
 
         # Si el enemigo está eliminado por trampa, no hacer nada
         if self.e_fila < 0:
@@ -1113,46 +1184,47 @@ class VentanaJuego(tk.Toplevel):
             dest_c = self.s_col
 
         # Calcular siguiente paso usando BFS
-        siguiente = self.siguiente_paso_hacia(self.e_fila, self.e_col, dest_f, dest_c)
+        siguiente = self.siguiente_paso_hacia(enemigo.fila, enemigo.col, dest_f, dest_c)
 
         if siguiente is not None:
             nf, nc = siguiente
 
             # Mover gráficamente
-            df = nf - self.e_fila
-            dc = nc - self.e_col
+            df = nf - enemigo.fila  
+            dc = nc - enemigo.col   
 
-            self.e_fila = nf
-            self.e_col = nc
+            enemigo.fila = nf
+            enemigo.col = nc
 
-            for elemento in self.enemigo_grafico:
+            for elemento in enemigo.grafico:
                 self.canvas.move(elemento, dc * self.tam, df * self.tam)
 
         # Verificar si atrapo al jugador 
         # Solo aplica cuando yo soy el escapador
         if self.modo == "escapa":
-            if self.e_fila == self.j_fila and self.e_col == self.j_col:
+            if enemigo.fila == self.j_fila and enemigo.col == self.j_col:  
+                self.juego_terminado = True
                 messagebox.showerror("Derrota", "Te atraparon\nPerdiste.")
                 self.destroy()
                 return
 
         # === Si el enemigo es escapador y llega a la salida entonces jugador pierde ===
         if self.modo == "cazador":
-            if self.e_fila == self.s_fila and self.e_col == self.s_col:
+            if enemigo.fila == self.s_fila and enemigo.col == self.s_col:
                 messagebox.showerror("Derrota", "El escapador llegó a la salida.\n¡Perdiste!")
                 self.destroy()
                 return
 
         # === Si cae en trampa ===
-        casilla_actual = self.mapa[self.e_fila][self.e_col]
+        casilla_actual = self.mapa[enemigo.fila][enemigo.col] 
 
         if isinstance(casilla_actual, Trampa):
-            self.eliminar_trampa(self.e_fila, self.e_col)
-            self.cazador_palma()
+            self.eliminar_trampa(enemigo.fila, enemigo.col)
+            self.cazador_palma(enemigo)
             return
 
         # Repetir en cierto tiempo (velocidad del enemigo)
-        self.after(self.vel_enemigo, self.mover_enemigo)
+        self.after(self.vel_enemigo, lambda: self.mover_enemigo(enemigo))
 
 class Ventana_modo_de_juego(tk.Toplevel):
     def __init__(self, parent, nombre_jugador):
