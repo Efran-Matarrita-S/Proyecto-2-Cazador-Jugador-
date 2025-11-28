@@ -455,6 +455,12 @@ class VentanaJuego(tk.Toplevel):
         self.penalizacion = params["penalizacion"]
         self.cantidad_enemigos = params["cantidad_enemigos"]
 
+        self.enemigos_eliminados = 0     # Para modo escapa
+        self.enemigos_atrapados = 0      # Para modo cazador
+        self.enemigos_escapados = 0      # Para modo cazador
+        self.penalizacion_total = 0      # Penalizacion acumulada
+
+
         # Generar el mapa antes de usar salida
         generador = GeneradorMapa()
         self.mapa = generador.generar()
@@ -671,6 +677,8 @@ class VentanaJuego(tk.Toplevel):
         # Contador de 10 segundos para reaparecer
         self.after(1000, lambda: self.contador_reaparicion(enemigo))
         #return
+
+        self.enemigos_eliminados += 1
     
     def contador_reaparicion(self, enemigo):
         enemigo.tiempo_reaparicion -= 1
@@ -1006,8 +1014,11 @@ class VentanaJuego(tk.Toplevel):
     def calcular_puntaje(self,tiempo):
         puntaje = 1000000
         if self.modo == "escapa":
+            bonus= self.enemigos_eliminados * 3000
             return puntaje - tiempo *1000
         else:
+            bonus_atrapados = self.enemigos_atrapados * 2000
+            penalizacion = self.enemigos_escapados * self.penalizacion
             return puntaje - tiempo * 800
     
     #--------------------------- ENERGÍA ---------------------------
@@ -1170,7 +1181,7 @@ class VentanaJuego(tk.Toplevel):
             return  #se deja de move cuando el jugador haya ganado o perdido
 
         # Si el enemigo está eliminado por trampa, no hacer nada
-        if self.e_fila < 0:
+        if self.e_fila < 0 or enemigo.estado == "muerto":
             return
 
         # Elegir destino según modo
@@ -1211,9 +1222,21 @@ class VentanaJuego(tk.Toplevel):
         # === Si el enemigo es escapador y llega a la salida entonces jugador pierde ===
         if self.modo == "cazador":
             if enemigo.fila == self.s_fila and enemigo.col == self.s_col:
-                messagebox.showerror("Derrota", "El escapador llegó a la salida.\n¡Perdiste!")
-                self.destroy()
+                self.enemigos_escapados += 1      # Se usa para penalización
+                self.penalizacion_total += self.penalizacion
+
+                enemigo.estado = "muerto"
+                for elem in enemigo.grafico:
+                    self.canvas.delete(elem)
+                enemigo.fila = -1
+                enemigo.col = -1
+
+                nuevo = Enemigo(0, 0)             # Nuevo escapista
+                self.enemigos.append(nuevo)
+                self.dibujar_enemigo(nuevo)
+                self.mover_enemigo(nuevo)
                 return
+
 
         # === Si cae en trampa ===
         casilla_actual = self.mapa[enemigo.fila][enemigo.col] 
@@ -1271,8 +1294,6 @@ class VentanaDificultad(tk.Toplevel):
     def seleccionar(self, diff):
         self.dificultad = diff
         self.destroy()
-
-
 
 #---------------------------PROGRAMA PRINCIPAL---------------------------
 if __name__ == "__main__":
