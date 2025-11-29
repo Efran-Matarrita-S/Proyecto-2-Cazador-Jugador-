@@ -285,7 +285,7 @@ class Puntajes:
         datos[modo].append({"nombre": nombre, "puntaje": puntaje})
         
         # Ordenar de MENOR a mayor (menos tiempo = mejor)
-        datos[modo].sort(key=lambda x: x["puntaje"])  #TODO: Revisar como sirve esto lo hizo Claude pero para implementarlo nosotros o dejarlo
+        datos[modo].sort(key=lambda x: x["puntaje"]) 
 
         
         with open(RUTA_PUNTAJES, "w") as f:
@@ -294,7 +294,14 @@ class Puntajes:
     def extraer_top_5(self, modo):
         with open(RUTA_PUNTAJES, "r") as f:
             datos = json.load(f)
-        return datos[modo][:5]
+            datos = datos[modo]
+            #datos = [9,8,7,6,5,4,3,2]
+            
+            datos = sorted(datos, key=lambda item: item["puntaje"], reverse=True)
+            #sorted(personas, key=lambda x: x["edad"])
+            print(datos)
+
+        return datos[:5]
 
 
 class Registro:
